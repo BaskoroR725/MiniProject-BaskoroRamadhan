@@ -2,12 +2,16 @@ package routes
 
 import (
 	"evermos-mini/controllers"
+	"evermos-mini/middleware"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 func SetupRoutes(app *fiber.App) {
-	api := app.Group("/auth")
-	api.Post("/register", controllers.Register)
-	api.Post("/login", controllers.Login)
+	app.Post("/auth/register", controllers.Register)
+	app.Post("/auth/login", controllers.Login)
+
+	user := app.Group("/user", middleware.JWTProtected)
+	user.Get("/profile", controllers.GetProfile)
+	user.Put("/profile", controllers.UpdateProfile)
 }
