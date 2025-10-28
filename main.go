@@ -10,24 +10,27 @@ import (
 )
 
 func main() {
+	// Inisialisasi database
 	config.InitDB()
 
-	// auto migrate tabel
+	// Auto-migrate semua tabel
 	config.DB.AutoMigrate(
-    &models.User{},
-    &models.Toko{},
-    &models.Alamat{},
-    &models.Category{},
-    &models.Produk{},
-    &models.LogProduk{},
-    &models.Transaksi{},
-    &models.DetailTransaksi{},
-)
-
+		&models.User{},
+		&models.Toko{},
+		&models.Alamat{},
+		&models.Category{},
+		&models.Produk{},
+		&models.LogProduk{},
+		&models.Transaksi{},
+		&models.DetailTransaksi{},
+	)
 
 	app := fiber.New()
+
+	// Setup routes (semua dikelola di folder routes/)
 	routes.SetupRoutes(app)
 
-	fmt.Println("🚀 Server running on http://localhost:8080")
+	// Jalankan server
+	fmt.Println("Server running on http://localhost:8080")
 	app.Listen(":8080")
 }

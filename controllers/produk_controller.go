@@ -29,7 +29,7 @@ func GetProdukByID(c *fiber.Ctx) error {
 func SearchProduk(c *fiber.Ctx) error {
 	nama := c.Query("nama")
 	var produk []models.Produk
-	config.DB.Preload("Toko").Where("LOWER(nama_produk) LIKE ?", "%"+strings.ToLower(nama)+"%").Find(&produk)
+	config.DB.Preload("Toko").Preload("Category").Where("LOWER(nama_produk) LIKE ?", "%"+strings.ToLower(nama)+"%").Find(&produk)
 	return c.JSON(fiber.Map{"status": true, "data": produk})
 }
 
@@ -75,7 +75,6 @@ func CreateProduk(c *fiber.Ctx) error {
 			"message": "Produk berhasil ditambahkan",
 			"data":    produk,
 	})
-
 }
 
 // PUT /produk/:id
