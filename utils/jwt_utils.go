@@ -6,7 +6,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var secretKey = []byte("evermos-secret-key") // ganti dengan key rahasia milikmu
+var secretKey = []byte("evermos-secret-key")
 
 // GenerateJWT membuat token JWT baru berdasarkan userID
 func GenerateJWT(userID uint) (string, error) {

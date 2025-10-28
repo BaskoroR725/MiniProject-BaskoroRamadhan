@@ -15,7 +15,7 @@ type LogProduk struct {
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 
-	Produk   Produk   `json:"produk"`   // relasi balik ke Produk
+	Produk   Produk   `json:"produk"`   
 	Toko     Toko     `json:"toko"`
 	Category Category `json:"category"`
 }
