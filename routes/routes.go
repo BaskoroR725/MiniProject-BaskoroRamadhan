@@ -12,5 +12,5 @@ func SetupRoutes(app *fiber.App) {
 
 	SetupProdukRoutes(api.Group("/produk"))
 
-	SetupTransaksiRoutes(api.Group("/transaksi"))
+	SetupTransaksiRoutes(api)
 }

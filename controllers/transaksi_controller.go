@@ -76,6 +76,7 @@ func CreateTransaksi(c *fiber.Ctx) error {
 		HargaTotal:       totalHarga,
 		MetodeBayar:      input.MetodeBayar,
 		Invoice:          invoice,
+		Status:           "Menunggu Pembayaran",
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
 	}
@@ -90,7 +91,7 @@ func CreateTransaksi(c *fiber.Ctx) error {
 		detailList[i].TransaksiID = transaksi.ID
 	}
 	config.DB.Create(&detailList)
-	
+
 	// preload relasi untuk response
 	config.DB.
 		Preload("User.Toko").
@@ -119,3 +120,72 @@ func GetAllTransaksi(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{"status": true, "data": transaksi})
 }
+
+// GET /api/transaksi/:id
+func GetTransaksiByID(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uint)
+	id := c.Params("id")
+
+	var transaksi models.Transaksi
+	if err := config.DB.
+		Preload("User.Toko").
+		Preload("DetailTransaksi.LogProduk.Produk.Toko").
+		Preload("DetailTransaksi.LogProduk.Produk.Category").
+		Preload("DetailTransaksi.LogProduk.Toko").
+		Preload("DetailTransaksi.LogProduk.Category").
+		Where("user_id = ?", userID).
+		First(&transaksi, id).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{
+			"status":  false,
+			"message": "Transaksi tidak ditemukan",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status": true,
+		"data":   transaksi,
+	})
+}
+
+// PUT /api/transaksi/:id/status
+func UpdateStatusTransaksi(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uint)
+	id := c.Params("id")
+
+	var input struct {
+		Status string `json:"status"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Input tidak valid"})
+	}
+
+	// Validasi status yang diizinkan
+	validStatuses := map[string]bool{
+		"Menunggu Pembayaran": true,
+		"Dikemas":             true,
+		"Dikirim":             true,
+		"Selesai":             true,
+	}
+	if !validStatuses[input.Status] {
+		return c.Status(400).JSON(fiber.Map{
+			"status":  false,
+			"message": "Status tidak valid",
+		})
+	}
+
+	var transaksi models.Transaksi
+	if err := config.DB.Where("user_id = ?", userID).First(&transaksi, id).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"status": false, "message": "Transaksi tidak ditemukan"})
+	}
+
+	transaksi.Status = input.Status
+	transaksi.UpdatedAt = time.Now()
+	config.DB.Save(&transaksi)
+
+	return c.JSON(fiber.Map{
+		"status":  true,
+		"message": "Status transaksi berhasil diperbarui",
+		"data":    transaksi,
+	})
+}
+

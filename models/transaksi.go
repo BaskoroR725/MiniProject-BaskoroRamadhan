@@ -8,6 +8,7 @@ type Transaksi struct {
 	HargaTotal       float64           `json:"harga_total"`
 	Invoice          string            `json:"invoice"`
 	MetodeBayar      string            `json:"metode_bayar"`
+	Status           string    				 `json:"status"`
 	UserID           uint              `json:"user_id"`
 	CreatedAt        time.Time         `json:"created_at"`
 	UpdatedAt        time.Time         `json:"updated_at"`

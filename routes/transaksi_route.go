@@ -8,9 +8,10 @@ import (
 )
 
 func SetupTransaksiRoutes(router fiber.Router) {
-	// semua route transaksi wajib login
-	transaksi := router.Group("/", middleware.JWTProtected)
+	transaksi := router.Group("/transaksi", middleware.JWTProtected)
 
 	transaksi.Post("/", controllers.CreateTransaksi)
 	transaksi.Get("/", controllers.GetAllTransaksi)
+	transaksi.Get("/:id", controllers.GetTransaksiByID)
+	transaksi.Put("/:id/status", controllers.UpdateStatusTransaksi)
 }
