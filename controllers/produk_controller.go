@@ -3,6 +3,7 @@ package controllers
 import (
 	"evermos-mini/config"
 	"evermos-mini/models"
+	"evermos-mini/utils"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -68,6 +69,9 @@ func CreateProduk(c *fiber.Ctx) error {
 	}
 
 	config.DB.Create(&produk)
+
+	//simpan log otomatis
+	utils.CreateLogProduk(produk)
 	// ambil ulang produk + relasi toko & category
 	config.DB.Preload("Toko").Preload("Category").First(&produk, produk.ID)
 	return c.JSON(fiber.Map{
@@ -114,6 +118,9 @@ func UpdateProduk(c *fiber.Ctx) error {
 	produk.Stok = input.Stok
 	produk.Deskripsi = input.Deskripsi
 	config.DB.Save(&produk)
+
+	utils.CreateLogProduk(produk)
+
 
 	return c.JSON(fiber.Map{"status": true, "message": "Produk berhasil diperbarui", "data": produk})
 }
