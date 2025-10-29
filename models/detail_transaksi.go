@@ -11,6 +11,6 @@ type DetailTransaksi struct {
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 
-	LogProduk LogProduk `json:"log_produk"`
-	Transaksi Transaksi `json:"transaksi"`
+	LogProduk   LogProduk  `json:"log_produk" gorm:"foreignKey:LogProdukID"`
+	Transaksi   Transaksi  `json:"transaksi" gorm:"foreignKey:TransaksiID"`
 }

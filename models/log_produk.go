@@ -15,7 +15,8 @@ type LogProduk struct {
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 
-	Produk   Produk   `json:"produk"`   
-	Toko     Toko     `json:"toko"`
-	Category Category `json:"category"`
+	// relasi antar tabel
+	Produk   Produk   `gorm:"foreignKey:ProdukID" json:"produk"`
+	Toko     Toko     `gorm:"foreignKey:TokoID" json:"toko"`
+	Category Category `gorm:"foreignKey:CategoryID" json:"category"`
 }
