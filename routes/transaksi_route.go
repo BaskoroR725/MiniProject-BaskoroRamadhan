@@ -7,11 +7,10 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func SetupTransaksiRoutes(router fiber.Router) {
-	transaksi := router.Group("/transaksi", middleware.JWTProtected)
-
-	transaksi.Post("/", controllers.CreateTransaksi)
+func SetupTransaksiRoutes(app *fiber.App) {
+	transaksi := app.Group("/transaksi", middleware.JWTProtected)
 	transaksi.Get("/", controllers.GetAllTransaksi)
 	transaksi.Get("/:id", controllers.GetTransaksiByID)
-	transaksi.Put("/:id/status", controllers.UpdateStatusTransaksi)
+	transaksi.Post("/", controllers.CreateTransaksi)
+	transaksi.Put("/:id", controllers.UpdateStatusTransaksi)
 }

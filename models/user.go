@@ -12,6 +12,7 @@ type User struct {
 	Email        string    `gorm:"unique" json:"email"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
+	Role string `json:"role" gorm:"default:user"`
 
 	Toko        Toko         `json:"toko"`
 	Alamat      []Alamat     `json:"alamat"`

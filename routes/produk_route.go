@@ -7,14 +7,12 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func SetupProdukRoutes(r fiber.Router) {
-	// Produk public (tidak butuh login)
-	r.Get("/", controllers.GetAllProduk)
-	r.Get("/search", controllers.SearchProduk)
-	r.Get("/:id", controllers.GetProdukByID)
+func SetupProdukRoutes(app *fiber.App) {
+	app.Get("/produk", controllers.GetAllProduk)
+	app.Get("/produk/:id", controllers.GetProdukByID)
 
-	// Produk protected (butuh login)
-	r.Post("/", middleware.JWTProtected, controllers.CreateProduk)
-	r.Put("/:id", middleware.JWTProtected, controllers.UpdateProduk)
-	r.Delete("/:id", middleware.JWTProtected, controllers.DeleteProduk)
+	produk := app.Group("/produk", middleware.JWTProtected)
+	produk.Post("/", controllers.CreateProduk)
+	produk.Put("/:id", controllers.UpdateProduk)
+	produk.Delete("/:id", controllers.DeleteProduk)
 }
