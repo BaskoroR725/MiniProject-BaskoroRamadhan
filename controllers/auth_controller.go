@@ -4,26 +4,29 @@ import (
 	"evermos-mini/config"
 	"evermos-mini/models"
 	"evermos-mini/utils"
-	"net/http"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/go-playground/validator/v10"
 )
+
+var validate = validator.New()
 
 func Register(c *fiber.Ctx) error {
 	var input struct {
-		Nama     string `json:"nama"`
-		Email    string `json:"email"`
-		NoTelp   string `json:"no_telp"`
-		Password string `json:"password"`
+		Nama     string `json:"nama" validate:"required,min=3"`
+		Email    string `json:"email" validate:"required,email"`
+		NoTelp   string `json:"no_telp" validate:"required"`
+		Password string `json:"password" validate:"required,min=6"`
 	}
 
 	if err := c.BodyParser(&input); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"status": false, "message": "Invalid input"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": false, "message": "Input tidak valid"})
 	}
 
-	if input.Nama == "" || input.Email == "" || input.NoTelp == "" || input.Password == "" {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"status": false, "message": "Semua field wajib diisi"})
+	// Validasi otomatis
+	if !utils.ValidateStruct(c, input) {
+		return nil
 	}
 
 	hash, _ := utils.HashPassword(input.Password)
@@ -34,42 +37,43 @@ func Register(c *fiber.Ctx) error {
 		NoTelp:       input.NoTelp,
 		KataSandi:    hash,
 		TanggalLahir: time.Now(),
-		JenisKelamin: "",
 	}
 
 	if err := config.DB.Create(&user).Error; err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"status": false, "message": "Email atau no_telp sudah digunakan"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":  false,
+			"message": "Email atau no_telp sudah digunakan",
+		})
 	}
 
-	// buat toko otomatis
 	toko := models.Toko{
-    NamaToko: "Toko " + input.Nama,
-    UserID:   user.ID,
+		NamaToko: "Toko " + input.Nama,
+		UserID:   user.ID,
 	}
 	config.DB.Create(&toko)
 
-	// ambil ulang user + toko-nya biar tampil di response
 	config.DB.Preload("Toko").First(&user, user.ID)
 
 	return c.JSON(fiber.Map{
-    "status":  true,
-    "message": "Registrasi berhasil",
-    "data":    user,
+		"status":  true,
+		"message": "Registrasi berhasil",
+		"data":    user,
 	})
-
 }
 
 func Login(c *fiber.Ctx) error {
 	var input struct {
-		NoTelp   string `json:"no_telp"`
-		Password string `json:"password"`
+		NoTelp   string `json:"no_telp" validate:"required"`
+		Password string `json:"password" validate:"required"`
 	}
 
 	if err := c.BodyParser(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status":  false,
-			"message": "Input tidak valid",
-		})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": false, "message": "Input tidak valid"})
+	}
+
+	// Validasi otomatis
+	if !utils.ValidateStruct(c, input) {
+		return nil
 	}
 
 	var user models.User

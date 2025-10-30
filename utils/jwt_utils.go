@@ -1,38 +1,55 @@
 package utils
 
 import (
+	"errors"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var secretKey = []byte("evermos-secret-key")
-
-// GenerateJWT membuat token JWT baru berdasarkan userID
-func GenerateJWT(userID uint) (string, error) {
-	claims := jwt.MapClaims{
-		"user_id": userID,
-		"exp":     time.Now().Add(time.Hour * 24).Unix(), // token berlaku 24 jam
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(secretKey)
+// Struktur klaim JWT
+type JWTClaim struct {
+	UserID uint `json:"user_id"`
+	jwt.RegisteredClaims
 }
 
-// ValidateToken memverifikasi token JWT dan mengembalikan userID jika valid
-func ValidateToken(tokenString string) (uint, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return secretKey, nil
-	})
+var jwtSecret = []byte(getSecret())
 
-	if err != nil || !token.Valid {
+// Ambil secret key dari .env
+func getSecret() string {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		secret = "evermos-secret-key" // fallback jika .env kosong
+	}
+	return secret
+}
+
+// Generate token baru
+func GenerateJWT(userID uint) (string, error) {
+	expirationTime := time.Now().Add(24 * time.Hour)
+	claims := &JWTClaim{
+		UserID: userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtSecret)
+}
+
+func ValidateToken(tokenString string) (uint, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &JWTClaim{}, func(token *jwt.Token) (interface{}, error) {
+		return jwtSecret, nil
+	})
+	if err != nil {
 		return 0, err
 	}
 
-	if claims, ok := token.Claims.(jwt.MapClaims); ok {
-		idFloat := claims["user_id"].(float64)
-		return uint(idFloat), nil
+	claims, ok := token.Claims.(*JWTClaim)
+	if !ok || !token.Valid {
+		return 0, errors.New("token tidak valid")
 	}
 
-	return 0, err
+	return claims.UserID, nil
 }

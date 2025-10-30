@@ -5,15 +5,23 @@ import (
 	"evermos-mini/models"
 	"evermos-mini/routes"
 	"fmt"
+	"os"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
+	"github.com/gofiber/fiber/v2/middleware/logger"
 )
 
 func main() {
-	// Inisialisasi database
+	// === Inisialisasi Database ===
 	config.InitDB()
 
-	// Auto-migrate semua tabel
+	// === Inisiasi seed database ===
+	config.SeedData()
+
+	// === Auto Migrate semua tabel ===
 	config.DB.AutoMigrate(
 		&models.User{},
 		&models.Toko{},
@@ -25,12 +33,35 @@ func main() {
 		&models.DetailTransaksi{},
 	)
 
+	// === Setup Fiber app ===
 	app := fiber.New()
 
-	// Setup routes (semua dikelola di folder routes/)
+	// === Middleware Keamanan ===
+
+	// 🔹 CORS agar API bisa diakses dari frontend
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "*",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+	}))
+
+	// 🔹 Rate Limiter untuk mencegah spam request
+	app.Use(limiter.New(limiter.Config{
+		Max:        60,              // maksimal 60 request
+		Expiration: 1 * time.Minute, // dalam 1 menit
+	}))
+
+	// 🔹 Logger untuk mencatat semua request ke terminal
+	app.Use(logger.New())
+
+	// === Setup Routes ===
 	routes.SetupRoutes(app)
 
-	// Jalankan server
-	fmt.Println("Server running on http://localhost:8080")
-	app.Listen(":8080")
+	// === Jalankan server di port dari .env ===
+	port := os.Getenv("APP_PORT")
+	if port == "" {
+		port = ":8080"
+	}
+
+	fmt.Println("Server running on http://localhost" + port)
+	app.Listen(port)
 }

@@ -68,7 +68,13 @@ func CreateProduk(c *fiber.Ctx) error {
 		CategoryID:    input.CategoryID,
 	}
 
-	config.DB.Create(&produk)
+	if err := config.DB.Create(&produk).Error; err != nil {
+	return c.Status(500).JSON(fiber.Map{
+			"status":  false,
+			"message": "Gagal menambahkan produk: " + err.Error(),
+		})
+	}
+
 
 	//simpan log otomatis
 	utils.CreateLogProduk(produk)
@@ -127,21 +133,37 @@ func UpdateProduk(c *fiber.Ctx) error {
 
 // DELETE /produk/:id
 func DeleteProduk(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uint)
 	id := c.Params("id")
 
-	var toko models.Toko
-	config.DB.Where("user_id = ?", userID).First(&toko)
-
+	// Cek apakah produk ada dulu
 	var produk models.Produk
 	if err := config.DB.First(&produk, id).Error; err != nil {
-		return c.Status(404).JSON(fiber.Map{"status": false, "message": "Produk tidak ditemukan"})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"status":  false,
+			"message": "Produk tidak ditemukan",
+		})
 	}
 
-	if produk.TokoID != toko.ID {
-		return c.Status(403).JSON(fiber.Map{"status": false, "message": "Tidak punya akses menghapus produk ini"})
+	//  Hapus log_produks yang berelasi dengan produk
+	if err := config.DB.Unscoped().Where("produk_id = ?", id).Delete(&models.LogProduk{}).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"status":  false,
+			"message": "Gagal menghapus log produk terkait",
+			"error":   err.Error(),
+		})
 	}
 
-	config.DB.Delete(&produk)
-	return c.JSON(fiber.Map{"status": true, "message": "Produk berhasil dihapus"})
+	//  Hapus produk itu sendiri (hard delete)
+	if err := config.DB.Unscoped().Delete(&models.Produk{}, id).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"status":  false,
+			"message": "Gagal menghapus produk",
+			"error":   err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status":  true,
+		"message": "Produk dan log terkait berhasil dihapus permanen",
+	})
 }
