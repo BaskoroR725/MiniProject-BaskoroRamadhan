@@ -3,6 +3,8 @@ package controllers
 import (
 	"fmt"
 	"time"
+	"math"
+	"strconv"
 
 	"evermos-mini/config"
 	"evermos-mini/models"
@@ -12,12 +14,58 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// GET /produk
+// GET /produk?page=1&limit=10&category_id=1&nama=kaos
 func GetAllProduk(c *fiber.Ctx) error {
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	categoryID := c.Query("category_id")
+	nama := c.Query("nama")
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+
+	offset := (page - 1) * limit
+
 	var produk []models.Produk
-	config.DB.Preload("Toko").Preload("Category").Find(&produk)
-	return c.JSON(fiber.Map{"status": true, "data": produk})
+	query := config.DB.Preload("Toko").Preload("Category")
+
+	if categoryID != "" {
+		query = query.Where("category_id = ?", categoryID)
+	}
+	if nama != "" {
+		query = query.Where("LOWER(nama_produk) LIKE ?", "%"+strings.ToLower(nama)+"%")
+	}
+
+	var total int64
+	query.Model(&models.Produk{}).Count(&total)
+
+	err := query.Offset(offset).Limit(limit).Find(&produk).Error
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"status":  false,
+			"message": "Gagal mengambil data produk",
+			"error":   err.Error(),
+		})
+	}
+
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+
+	return c.JSON(fiber.Map{
+		"status": true,
+		"pagination": fiber.Map{
+			"page":        page,
+			"limit":       limit,
+			"total_data":  total,
+			"total_pages": totalPages,
+		},
+		"data": produk,
+	})
 }
+
 
 // GET /produk/:id
 func GetProdukByID(c *fiber.Ctx) error {
