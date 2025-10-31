@@ -6,55 +6,68 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// CREATE ALAMAT
-func CreateAlamat(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uint)
-	var input models.Alamat
-
-	if input.JudulAlamat == "" {
-    input.JudulAlamat = "Alamat Utama"
-	}
-	
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Input tidak valid"})
-	}
-
-	input.UserID = userID
-	if err := config.DB.Create(&input).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"status": false, "message": "Gagal menambahkan alamat"})
-	}
-
-	return c.JSON(fiber.Map{"status": true, "message": "Alamat berhasil ditambahkan", "data": input})
-}
-
-// GET SEMUA ALAMAT USER
+// GET semua alamat user
 func GetAllAlamat(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
+
 	var alamat []models.Alamat
-	config.DB.Where("user_id = ?", userID).Find(&alamat)
+	if err := config.DB.Where("user_id = ?", userID).Find(&alamat).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"status":  false,
+			"message": "Gagal mengambil alamat",
+		})
+	}
+
 	return c.JSON(fiber.Map{"status": true, "data": alamat})
 }
 
-// GET ALAMAT BY ID
+// GET alamat by ID
 func GetAlamatByID(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
 	id := c.Params("id")
 
 	var alamat models.Alamat
-	if err := config.DB.Where("id = ? AND user_id = ?", id, userID).First(&alamat).Error; err != nil {
+	if err := config.DB.First(&alamat, id).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{"status": false, "message": "Alamat tidak ditemukan"})
 	}
+
+	if alamat.UserID != userID {
+		return c.Status(403).JSON(fiber.Map{"status": false, "message": "Tidak punya akses ke alamat ini"})
+	}
+
 	return c.JSON(fiber.Map{"status": true, "data": alamat})
 }
 
-// UPDATE ALAMAT
+// POST tambah alamat baru
+func CreateAlamat(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uint)
+
+	var input models.Alamat
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Input tidak valid"})
+	}
+
+	input.UserID = userID
+
+	if err := config.DB.Create(&input).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"status": false, "message": "Gagal menambah alamat"})
+	}
+
+	return c.JSON(fiber.Map{"status": true, "message": "Alamat berhasil ditambahkan", "data": input})
+}
+
+// PUT update alamat
 func UpdateAlamat(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
 	id := c.Params("id")
 
 	var alamat models.Alamat
-	if err := config.DB.Where("id = ? AND user_id = ?", id, userID).First(&alamat).Error; err != nil {
+	if err := config.DB.First(&alamat, id).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{"status": false, "message": "Alamat tidak ditemukan"})
+	}
+
+	if alamat.UserID != userID {
+		return c.Status(403).JSON(fiber.Map{"status": false, "message": "Tidak punya akses ke alamat ini"})
 	}
 
 	var input models.Alamat
@@ -66,14 +79,18 @@ func UpdateAlamat(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": true, "message": "Alamat berhasil diperbarui", "data": alamat})
 }
 
-// DELETE ALAMAT
+// DELETE hapus alamat
 func DeleteAlamat(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
 	id := c.Params("id")
 
 	var alamat models.Alamat
-	if err := config.DB.Where("id = ? AND user_id = ?", id, userID).First(&alamat).Error; err != nil {
+	if err := config.DB.First(&alamat, id).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{"status": false, "message": "Alamat tidak ditemukan"})
+	}
+
+	if alamat.UserID != userID {
+		return c.Status(403).JSON(fiber.Map{"status": false, "message": "Tidak punya akses ke alamat ini"})
 	}
 
 	config.DB.Delete(&alamat)

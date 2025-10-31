@@ -2,14 +2,14 @@ package controllers
 
 import (
 	"fmt"
-	"time"
 	"math"
 	"strconv"
+	"strings"
+	"time"
 
 	"evermos-mini/config"
 	"evermos-mini/models"
 	"evermos-mini/utils"
-	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -43,7 +43,7 @@ func GetAllProduk(c *fiber.Ctx) error {
 	var total int64
 	query.Model(&models.Produk{}).Count(&total)
 
-	err := query.Offset(offset).Limit(limit).Find(&produk).Error
+	err := query.Order("created_at desc").Offset(offset).Limit(limit).Find(&produk).Error
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"status":  false,
@@ -66,7 +66,6 @@ func GetAllProduk(c *fiber.Ctx) error {
 	})
 }
 
-
 // GET /produk/:id
 func GetProdukByID(c *fiber.Ctx) error {
 	id := c.Params("id")
@@ -77,19 +76,10 @@ func GetProdukByID(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": true, "data": produk})
 }
 
-// GET /produk/search?nama=xxx
-func SearchProduk(c *fiber.Ctx) error {
-	nama := c.Query("nama")
-	var produk []models.Produk
-	config.DB.Preload("Toko").Preload("Category").Where("LOWER(nama_produk) LIKE ?", "%"+strings.ToLower(nama)+"%").Find(&produk)
-	return c.JSON(fiber.Map{"status": true, "data": produk})
-}
-
 // POST /produk
 func CreateProduk(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
 
-	// cari toko milik user
 	var toko models.Toko
 	if err := config.DB.Where("user_id = ?", userID).First(&toko).Error; err != nil {
 		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Toko tidak ditemukan"})
@@ -110,13 +100,12 @@ func CreateProduk(c *fiber.Ctx) error {
 	}
 
 	if input.Gambar == "" {
-    return c.Status(400).JSON(fiber.Map{"status": false, "message": "Gambar produk wajib diisi"})
+		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Gambar produk wajib diisi"})
 	}
-
 
 	produk := models.Produk{
 		NamaProduk:    input.NamaProduk,
-		Slug:          strings.ToLower(strings.ReplaceAll(input.NamaProduk, " ", "-")),
+		Slug:          fmt.Sprintf("%s-%d", strings.ToLower(strings.ReplaceAll(input.NamaProduk, " ", "-")), time.Now().Unix()),
 		HargaReseller: input.HargaReseller,
 		HargaKonsumen: input.HargaKonsumen,
 		Stok:          input.Stok,
@@ -127,21 +116,19 @@ func CreateProduk(c *fiber.Ctx) error {
 	}
 
 	if err := config.DB.Create(&produk).Error; err != nil {
-	return c.Status(500).JSON(fiber.Map{
+		return c.Status(500).JSON(fiber.Map{
 			"status":  false,
 			"message": "Gagal menambahkan produk: " + err.Error(),
 		})
 	}
 
-
-	//simpan log otomatis
 	utils.CreateLogProduk(produk)
-	// ambil ulang produk + relasi toko & category
 	config.DB.Preload("Toko").Preload("Category").First(&produk, produk.ID)
+
 	return c.JSON(fiber.Map{
-			"status":  true,
-			"message": "Produk berhasil ditambahkan",
-			"data":    produk,
+		"status":  true,
+		"message": "Produk berhasil ditambahkan",
+		"data":    produk,
 	})
 }
 
@@ -177,14 +164,14 @@ func UpdateProduk(c *fiber.Ctx) error {
 	}
 
 	produk.NamaProduk = input.NamaProduk
+	produk.Slug = strings.ToLower(strings.ReplaceAll(input.NamaProduk, " ", "-")) // 🔄 Update slug agar ikut berubah
 	produk.HargaReseller = input.HargaReseller
 	produk.HargaKonsumen = input.HargaKonsumen
 	produk.Stok = input.Stok
 	produk.Deskripsi = input.Deskripsi
+
 	config.DB.Save(&produk)
-
 	utils.CreateLogProduk(produk)
-
 
 	return c.JSON(fiber.Map{"status": true, "message": "Produk berhasil diperbarui", "data": produk})
 }
@@ -193,37 +180,20 @@ func UpdateProduk(c *fiber.Ctx) error {
 func DeleteProduk(c *fiber.Ctx) error {
 	id := c.Params("id")
 
-	// Cek apakah produk ada dulu
 	var produk models.Produk
 	if err := config.DB.First(&produk, id).Error; err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"status":  false,
-			"message": "Produk tidak ditemukan",
-		})
+		return c.Status(404).JSON(fiber.Map{"status": false, "message": "Produk tidak ditemukan"})
 	}
 
-	//  Hapus log_produks yang berelasi dengan produk
 	if err := config.DB.Unscoped().Where("produk_id = ?", id).Delete(&models.LogProduk{}).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"status":  false,
-			"message": "Gagal menghapus log produk terkait",
-			"error":   err.Error(),
-		})
+		return c.Status(500).JSON(fiber.Map{"status": false, "message": "Gagal menghapus log produk terkait", "error": err.Error()})
 	}
 
-	//  Hapus produk itu sendiri (hard delete)
 	if err := config.DB.Unscoped().Delete(&models.Produk{}, id).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"status":  false,
-			"message": "Gagal menghapus produk",
-			"error":   err.Error(),
-		})
+		return c.Status(500).JSON(fiber.Map{"status": false, "message": "Gagal menghapus produk", "error": err.Error()})
 	}
 
-	return c.JSON(fiber.Map{
-		"status":  true,
-		"message": "Produk dan log terkait berhasil dihapus permanen",
-	})
+	return c.JSON(fiber.Map{"status": true, "message": "Produk dan log terkait berhasil dihapus permanen"})
 }
 
 // POST /upload
@@ -233,7 +203,13 @@ func UploadGambarProduk(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"status": false, "message": "File tidak ditemukan"})
 	}
 
-	// Simpan file ke folder uploads/
+	// Validasi ekstensi file
+	if !strings.HasSuffix(strings.ToLower(file.Filename), ".jpg") &&
+		!strings.HasSuffix(strings.ToLower(file.Filename), ".jpeg") &&
+		!strings.HasSuffix(strings.ToLower(file.Filename), ".png") {
+		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Format file tidak didukung (hanya JPG/PNG)"})
+	}
+
 	filename := fmt.Sprintf("%d-%s", time.Now().Unix(), file.Filename)
 	savePath := fmt.Sprintf("./uploads/%s", filename)
 
@@ -241,9 +217,7 @@ func UploadGambarProduk(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"status": false, "message": "Gagal menyimpan file"})
 	}
 
-	// Kirim URL file yang tersimpan
 	fileURL := fmt.Sprintf("http://localhost:8080/uploads/%s", filename)
-
 	return c.JSON(fiber.Map{
 		"status":  true,
 		"message": "Upload berhasil",
@@ -252,4 +226,3 @@ func UploadGambarProduk(c *fiber.Ctx) error {
 		},
 	})
 }
-

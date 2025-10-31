@@ -141,6 +141,13 @@ func GetTransaksiByID(c *fiber.Ctx) error {
 		})
 	}
 
+	if transaksi.UserID != userID {
+    return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+        "status": false,
+        "message": "Tidak punya akses ke transaksi ini",
+    })
+}
+
 	return c.JSON(fiber.Map{
 		"status": true,
 		"data":   transaksi,

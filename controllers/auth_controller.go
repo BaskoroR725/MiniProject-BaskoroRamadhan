@@ -14,7 +14,7 @@ var validate = validator.New()
 
 func Register(c *fiber.Ctx) error {
 	var input struct {
-		Nama     string `json:"nama" validate:"required,min=3"`
+		NamaUser string `json:"nama_user" validate:"required,min=3"`
 		Email    string `json:"email" validate:"required,email"`
 		NoTelp   string `json:"no_telp" validate:"required"`
 		Password string `json:"password" validate:"required,min=6"`
@@ -24,7 +24,6 @@ func Register(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": false, "message": "Input tidak valid"})
 	}
 
-	// Validasi otomatis
 	if !utils.ValidateStruct(c, input) {
 		return nil
 	}
@@ -32,11 +31,12 @@ func Register(c *fiber.Ctx) error {
 	hash, _ := utils.HashPassword(input.Password)
 
 	user := models.User{
-		NamaUser:     input.Nama,
+		NamaUser:     input.NamaUser,
 		Email:        input.Email,
 		NoTelp:       input.NoTelp,
 		KataSandi:    hash,
 		TanggalLahir: time.Now(),
+		Role:         "user",
 	}
 
 	if err := config.DB.Create(&user).Error; err != nil {
@@ -47,7 +47,7 @@ func Register(c *fiber.Ctx) error {
 	}
 
 	toko := models.Toko{
-		NamaToko: "Toko " + input.Nama,
+		NamaToko: "Toko " + input.NamaUser,
 		UserID:   user.ID,
 	}
 	config.DB.Create(&toko)
@@ -71,7 +71,6 @@ func Login(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": false, "message": "Input tidak valid"})
 	}
 
-	// Validasi otomatis
 	if !utils.ValidateStruct(c, input) {
 		return nil
 	}
@@ -91,7 +90,7 @@ func Login(c *fiber.Ctx) error {
 		})
 	}
 
-	token, _ := utils.GenerateJWT(user.ID)
+	token, _ := utils.GenerateJWT(user.ID, user.Role)
 
 	return c.JSON(fiber.Map{
 		"status":  true,
@@ -107,7 +106,7 @@ func GetProfile(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
 
 	var user models.User
-	if err := config.DB.Preload("Toko").First(&user, userID).Error; err != nil {
+	if err := config.DB.Preload("Toko").Preload("Alamat").First(&user, userID).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{"status": false, "message": "User tidak ditemukan"})
 	}
 
@@ -134,6 +133,12 @@ func UpdateProfile(c *fiber.Ctx) error {
 
 	user.NamaUser = input.NamaUser
 	user.JenisKelamin = input.JenisKelamin
+
+	if input.TanggalLahir != "" {
+		tgl, _ := time.Parse("2006-01-02", input.TanggalLahir)
+		user.TanggalLahir = tgl
+	}
+
 	config.DB.Save(&user)
 
 	return c.JSON(fiber.Map{"status": true, "message": "Profil berhasil diperbarui", "data": user})

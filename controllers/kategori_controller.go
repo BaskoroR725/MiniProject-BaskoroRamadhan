@@ -3,24 +3,57 @@ package controllers
 import (
 	"evermos-mini/config"
 	"evermos-mini/models"
-
 	"github.com/gofiber/fiber/v2"
 )
 
 // GET /kategori
 func GetAllKategori(c *fiber.Ctx) error {
 	var kategori []models.Category
-	config.DB.Find(&kategori)
-	return c.JSON(fiber.Map{"status": true, "data": kategori})
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 10)
+	search := c.Query("search", "")
+
+	offset := (page - 1) * limit
+	query := config.DB.Model(&models.Category{})
+
+	if search != "" {
+		query = query.Where("nama_category LIKE ?", "%"+search+"%")
+	}
+
+	var total int64
+	query.Count(&total)
+	query.Offset(offset).Limit(limit).Find(&kategori)
+
+	return c.JSON(fiber.Map{
+		"status": true,
+		"data":   kategori,
+		"meta": fiber.Map{
+			"page":  page,
+			"limit": limit,
+			"total": total,
+		},
+	})
 }
 
-// POST /kategori
+// POST /kategori (Admin only)
 func CreateKategori(c *fiber.Ctx) error {
+	role := c.Locals("role")
+	if role != "admin" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"status":  false,
+			"message": "Hanya admin yang dapat menambah kategori",
+		})
+	}
+
 	var input struct {
 		NamaCategory string `json:"nama_category"`
 	}
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Input tidak valid"})
+	}
+
+	if input.NamaCategory == "" {
+		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Nama kategori wajib diisi"})
 	}
 
 	category := models.Category{NamaCategory: input.NamaCategory}
@@ -29,8 +62,16 @@ func CreateKategori(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": true, "message": "Kategori berhasil ditambahkan", "data": category})
 }
 
-// PUT /kategori/:id
+// PUT /kategori/:id (Admin only)
 func UpdateKategori(c *fiber.Ctx) error {
+	role := c.Locals("role")
+	if role != "admin" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"status":  false,
+			"message": "Hanya admin yang dapat mengubah kategori",
+		})
+	}
+
 	id := c.Params("id")
 
 	var category models.Category
@@ -45,14 +86,26 @@ func UpdateKategori(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Input tidak valid"})
 	}
 
+	if input.NamaCategory == "" {
+		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Nama kategori wajib diisi"})
+	}
+
 	category.NamaCategory = input.NamaCategory
 	config.DB.Save(&category)
 
 	return c.JSON(fiber.Map{"status": true, "message": "Kategori berhasil diperbarui", "data": category})
 }
 
-// DELETE /kategori/:id
+// DELETE /kategori/:id (Admin only)
 func DeleteKategori(c *fiber.Ctx) error {
+	role := c.Locals("role")
+	if role != "admin" {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"status":  false,
+			"message": "Hanya admin yang dapat menghapus kategori",
+		})
+	}
+
 	id := c.Params("id")
 
 	var category models.Category

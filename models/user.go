@@ -10,9 +10,9 @@ type User struct {
 	TanggalLahir time.Time `json:"tanggal_lahir"`
 	JenisKelamin string    `json:"jenis_kelamin"`
 	Email        string    `gorm:"unique" json:"email"`
+	Role          string    `json:"role" gorm:"default:user"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
-	Role string `json:"role" gorm:"default:user"`
 
 	Toko        Toko         `json:"toko"`
 	Alamat      []Alamat     `json:"alamat"`

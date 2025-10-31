@@ -18,7 +18,7 @@ func JWTProtected(c *fiber.Ctx) error {
 	}
 
 	tokenString := strings.Replace(authHeader, "Bearer ", "", 1)
-	userID, err := utils.ValidateToken(tokenString)
+	userID, role, err := utils.ValidateToken(tokenString)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"status":  false,
@@ -26,6 +26,7 @@ func JWTProtected(c *fiber.Ctx) error {
 		})
 	}
 
-	c.Locals("user_id", userID) // simpan user_id agar bisa dipakai di handler berikutnya
+	c.Locals("user_id", userID) 
+	c.Locals("role", role)
 	return c.Next()
 }
