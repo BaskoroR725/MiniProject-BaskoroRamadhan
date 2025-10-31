@@ -36,6 +36,9 @@ func main() {
 	// === Setup Fiber app ===
 	app := fiber.New()
 
+	// Ini agar folder uploads bisa diakses dari browser
+	app.Static("/uploads", "./uploads")
+
 	// === Middleware Keamanan ===
 
 	// 🔹 CORS agar API bisa diakses dari frontend

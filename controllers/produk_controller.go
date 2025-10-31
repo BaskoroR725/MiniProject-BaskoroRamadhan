@@ -1,6 +1,9 @@
 package controllers
 
 import (
+	"fmt"
+	"time"
+
 	"evermos-mini/config"
 	"evermos-mini/models"
 	"evermos-mini/utils"
@@ -51,11 +54,17 @@ func CreateProduk(c *fiber.Ctx) error {
 		Stok          int     `json:"stok"`
 		Deskripsi     string  `json:"deskripsi"`
 		CategoryID    uint    `json:"category_id"`
+		Gambar        string  `json:"gambar"`
 	}
 
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Input tidak valid"})
 	}
+
+	if input.Gambar == "" {
+    return c.Status(400).JSON(fiber.Map{"status": false, "message": "Gambar produk wajib diisi"})
+	}
+
 
 	produk := models.Produk{
 		NamaProduk:    input.NamaProduk,
@@ -66,6 +75,7 @@ func CreateProduk(c *fiber.Ctx) error {
 		Deskripsi:     input.Deskripsi,
 		TokoID:        toko.ID,
 		CategoryID:    input.CategoryID,
+		Gambar:        input.Gambar,
 	}
 
 	if err := config.DB.Create(&produk).Error; err != nil {
@@ -167,3 +177,31 @@ func DeleteProduk(c *fiber.Ctx) error {
 		"message": "Produk dan log terkait berhasil dihapus permanen",
 	})
 }
+
+// POST /upload
+func UploadGambarProduk(c *fiber.Ctx) error {
+	file, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"status": false, "message": "File tidak ditemukan"})
+	}
+
+	// Simpan file ke folder uploads/
+	filename := fmt.Sprintf("%d-%s", time.Now().Unix(), file.Filename)
+	savePath := fmt.Sprintf("./uploads/%s", filename)
+
+	if err := c.SaveFile(file, savePath); err != nil {
+		return c.Status(500).JSON(fiber.Map{"status": false, "message": "Gagal menyimpan file"})
+	}
+
+	// Kirim URL file yang tersimpan
+	fileURL := fmt.Sprintf("http://localhost:8080/uploads/%s", filename)
+
+	return c.JSON(fiber.Map{
+		"status":  true,
+		"message": "Upload berhasil",
+		"data": fiber.Map{
+			"file_url": fileURL,
+		},
+	})
+}
+

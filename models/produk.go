@@ -10,6 +10,7 @@ type Produk struct {
 	HargaKonsumen float64   `json:"harga_konsumen"`
 	Stok          int       `json:"stok"`
 	Deskripsi     string    `json:"deskripsi"`
+	Gambar         string    `json:"gambar"` 
 	TokoID        uint      `json:"toko_id"`
 	CategoryID    uint      `json:"category_id"`
 	CreatedAt     time.Time `json:"created_at"`

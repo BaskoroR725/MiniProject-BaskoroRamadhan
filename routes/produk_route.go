@@ -15,4 +15,6 @@ func SetupProdukRoutes(app *fiber.App) {
 	produk.Post("/", controllers.CreateProduk)
 	produk.Put("/:id", controllers.UpdateProduk)
 	produk.Delete("/:id", controllers.DeleteProduk)
+	produk.Post("/upload", controllers.UploadGambarProduk)
+
 }
