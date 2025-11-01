@@ -6,7 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// GET /kategori
+// GET /category
 func GetAllKategori(c *fiber.Ctx) error {
 	var kategori []models.Category
 	page := c.QueryInt("page", 1)
@@ -35,7 +35,20 @@ func GetAllKategori(c *fiber.Ctx) error {
 	})
 }
 
-// POST /kategori (Admin only)
+// GET /category/:id
+func GetKategoriByID(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	var category models.Category
+	if err := config.DB.First(&category, id).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"status": false, "message": "Kategori tidak ditemukan"})
+	}
+
+	return c.JSON(fiber.Map{"status": true, "data": category})
+}
+
+
+// POST /category (Admin only)
 func CreateKategori(c *fiber.Ctx) error {
 	role := c.Locals("role")
 	if role != "admin" {
@@ -62,7 +75,7 @@ func CreateKategori(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": true, "message": "Kategori berhasil ditambahkan", "data": category})
 }
 
-// PUT /kategori/:id (Admin only)
+// PUT /category/:id (Admin only)
 func UpdateKategori(c *fiber.Ctx) error {
 	role := c.Locals("role")
 	if role != "admin" {
@@ -96,7 +109,7 @@ func UpdateKategori(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": true, "message": "Kategori berhasil diperbarui", "data": category})
 }
 
-// DELETE /kategori/:id (Admin only)
+// DELETE /category/:id (Admin only)
 func DeleteKategori(c *fiber.Ctx) error {
 	role := c.Locals("role")
 	if role != "admin" {

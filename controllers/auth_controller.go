@@ -12,30 +12,49 @@ import (
 
 var validate = validator.New()
 
+// ======================= REGISTER =======================
 func Register(c *fiber.Ctx) error {
 	var input struct {
-		NamaUser string `json:"nama_user" validate:"required,min=3"`
-		Email    string `json:"email" validate:"required,email"`
-		NoTelp   string `json:"no_telp" validate:"required"`
-		Password string `json:"password" validate:"required,min=6"`
+		Nama         string `json:"nama" validate:"required,min=3"`
+		Email        string `json:"email" validate:"required,email"`
+		NoTelp       string `json:"no_telp" validate:"required"`
+		KataSandi    string `json:"kata_sandi" validate:"required,min=6"`
+		TanggalLahir string `json:"tanggal_lahir"`
+		Pekerjaan    string `json:"pekerjaan"`
+		IDProvinsi   string `json:"id_provinsi"`
+		IDKota       string `json:"id_kota"`
 	}
 
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"status": false, "message": "Input tidak valid"})
 	}
 
+	// Validasi otomatis
 	if !utils.ValidateStruct(c, input) {
 		return nil
 	}
 
-	hash, _ := utils.HashPassword(input.Password)
+	hash, _ := utils.HashPassword(input.KataSandi)
+
+	// Default tanggal lahir jika kosong
+	var tglLahir time.Time
+	if input.TanggalLahir != "" {
+		tgl, err := time.Parse("02/01/2006", input.TanggalLahir)
+		if err == nil {
+			tglLahir = tgl
+		} else {
+			tglLahir = time.Now()
+		}
+	} else {
+		tglLahir = time.Now()
+	}
 
 	user := models.User{
-		NamaUser:     input.NamaUser,
+		NamaUser:     input.Nama,
 		Email:        input.Email,
 		NoTelp:       input.NoTelp,
 		KataSandi:    hash,
-		TanggalLahir: time.Now(),
+		TanggalLahir: tglLahir,
 		Role:         "user",
 	}
 
@@ -46,13 +65,27 @@ func Register(c *fiber.Ctx) error {
 		})
 	}
 
+	// Buat toko otomatis
 	toko := models.Toko{
-		NamaToko: "Toko " + input.NamaUser,
+		NamaToko: "Toko " + input.Nama,
 		UserID:   user.ID,
 	}
 	config.DB.Create(&toko)
 
-	config.DB.Preload("Toko").First(&user, user.ID)
+	// Simpan alamat dasar dari ID Provinsi dan Kota (jika dikirim)
+	if input.IDProvinsi != "" || input.IDKota != "" {
+		alamat := models.Alamat{
+			NamaPenerima: user.NamaUser,
+			NoTelp:       user.NoTelp,
+			DetailAlamat: "Alamat utama",
+			UserID:       user.ID,
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		}
+		config.DB.Create(&alamat)
+	}
+
+	config.DB.Preload("Toko").Preload("Alamat").First(&user, user.ID)
 
 	return c.JSON(fiber.Map{
 		"status":  true,
@@ -61,10 +94,11 @@ func Register(c *fiber.Ctx) error {
 	})
 }
 
+// ======================= LOGIN =======================
 func Login(c *fiber.Ctx) error {
 	var input struct {
-		NoTelp   string `json:"no_telp" validate:"required"`
-		Password string `json:"password" validate:"required"`
+		NoTelp    string `json:"no_telp" validate:"required"`
+		KataSandi string `json:"kata_sandi" validate:"required"`
 	}
 
 	if err := c.BodyParser(&input); err != nil {
@@ -83,7 +117,7 @@ func Login(c *fiber.Ctx) error {
 		})
 	}
 
-	if !utils.CheckPasswordHash(input.Password, user.KataSandi) {
+	if !utils.CheckPasswordHash(input.KataSandi, user.KataSandi) {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"status":  false,
 			"message": "Password salah",
@@ -102,6 +136,7 @@ func Login(c *fiber.Ctx) error {
 	})
 }
 
+// ======================= GET PROFILE =======================
 func GetProfile(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
 
@@ -113,6 +148,7 @@ func GetProfile(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": true, "data": user})
 }
 
+// ======================= UPDATE PROFILE =======================
 func UpdateProfile(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
 

@@ -8,7 +8,16 @@ import (
 )
 
 func SetupUserRoutes(app *fiber.App) {
-	user := app.Group("/users", middleware.JWTProtected)
-	user.Get("/profile", controllers.GetProfile)
-	user.Put("/profile", controllers.UpdateProfile)
+	user := app.Group("/user", middleware.JWTProtected)
+
+	// Profil
+	user.Get("/", controllers.GetMyProfile)
+	user.Put("/", controllers.UpdateMyProfile)
+
+	// Alamat
+	user.Get("/alamat", controllers.GetAllAlamat)
+	user.Get("/alamat/:id", controllers.GetAlamatByID)
+	user.Post("/alamat", controllers.CreateAlamat)
+	user.Put("/alamat/:id", controllers.UpdateAlamat)
+	user.Delete("/alamat/:id", controllers.DeleteAlamat)
 }

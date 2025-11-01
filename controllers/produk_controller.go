@@ -1,25 +1,27 @@
 package controllers
 
 import (
+	"evermos-mini/config"
+	"evermos-mini/models"
+	"evermos-mini/utils"
 	"fmt"
 	"math"
 	"strconv"
 	"strings"
 	"time"
 
-	"evermos-mini/config"
-	"evermos-mini/models"
-	"evermos-mini/utils"
-
 	"github.com/gofiber/fiber/v2"
 )
 
-// GET /produk?page=1&limit=10&category_id=1&nama=kaos
-func GetAllProduk(c *fiber.Ctx) error {
+// GET /product?nama_produk=&limit=&page=&category_id=&toko_id=&min_harga=&max_harga=
+func GetAllProduct(c *fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	limit, _ := strconv.Atoi(c.Query("limit", "10"))
-	categoryID := c.Query("category_id")
-	nama := c.Query("nama")
+	nama := c.Query("nama_produk", "")
+	categoryID := c.Query("category_id", "")
+	tokoID := c.Query("toko_id", "")
+	minHarga := c.Query("min_harga", "")
+	maxHarga := c.Query("max_harga", "")
 
 	if page < 1 {
 		page = 1
@@ -33,23 +35,27 @@ func GetAllProduk(c *fiber.Ctx) error {
 	var produk []models.Produk
 	query := config.DB.Preload("Toko").Preload("Category")
 
+	if nama != "" {
+		query = query.Where("LOWER(nama_produk) LIKE ?", "%"+strings.ToLower(nama)+"%")
+	}
 	if categoryID != "" {
 		query = query.Where("category_id = ?", categoryID)
 	}
-	if nama != "" {
-		query = query.Where("LOWER(nama_produk) LIKE ?", "%"+strings.ToLower(nama)+"%")
+	if tokoID != "" {
+		query = query.Where("toko_id = ?", tokoID)
+	}
+	if minHarga != "" {
+		query = query.Where("harga_konsumen >= ?", minHarga)
+	}
+	if maxHarga != "" {
+		query = query.Where("harga_konsumen <= ?", maxHarga)
 	}
 
 	var total int64
 	query.Model(&models.Produk{}).Count(&total)
 
-	err := query.Order("created_at desc").Offset(offset).Limit(limit).Find(&produk).Error
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{
-			"status":  false,
-			"message": "Gagal mengambil data produk",
-			"error":   err.Error(),
-		})
+	if err := query.Offset(offset).Limit(limit).Find(&produk).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"status": false, "message": "Gagal mengambil produk"})
 	}
 
 	totalPages := int(math.Ceil(float64(total) / float64(limit)))
@@ -66,8 +72,8 @@ func GetAllProduk(c *fiber.Ctx) error {
 	})
 }
 
-// GET /produk/:id
-func GetProdukByID(c *fiber.Ctx) error {
+// GET /product/:id
+func GetProductByID(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var produk models.Produk
 	if err := config.DB.Preload("Toko").Preload("Category").First(&produk, id).Error; err != nil {
@@ -76,8 +82,8 @@ func GetProdukByID(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": true, "data": produk})
 }
 
-// POST /produk
-func CreateProduk(c *fiber.Ctx) error {
+// POST /product
+func CreateProduct(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
 
 	var toko models.Toko
@@ -85,55 +91,49 @@ func CreateProduk(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Toko tidak ditemukan"})
 	}
 
-	var input struct {
-		NamaProduk    string  `json:"nama_produk"`
-		HargaReseller float64 `json:"harga_reseller"`
-		HargaKonsumen float64 `json:"harga_konsumen"`
-		Stok          int     `json:"stok"`
-		Deskripsi     string  `json:"deskripsi"`
-		CategoryID    uint    `json:"category_id"`
-		Gambar        string  `json:"gambar"`
-	}
+	namaProduk := c.FormValue("nama_produk")
+	hargaReseller, _ := strconv.ParseFloat(c.FormValue("harga_reseller"), 64)
+	hargaKonsumen, _ := strconv.ParseFloat(c.FormValue("harga_konsumen"), 64)
+	stok, _ := strconv.Atoi(c.FormValue("stok"))
+	deskripsi := c.FormValue("deskripsi")
+	categoryID, _ := strconv.Atoi(c.FormValue("category_id"))
 
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Input tidak valid"})
-	}
-
-	if input.Gambar == "" {
+	file, err := c.FormFile("photo")
+	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Gambar produk wajib diisi"})
 	}
 
+	filename := fmt.Sprintf("%d-%s", time.Now().Unix(), file.Filename)
+	savePath := fmt.Sprintf("./uploads/%s", filename)
+	if err := c.SaveFile(file, savePath); err != nil {
+		return c.Status(500).JSON(fiber.Map{"status": false, "message": "Gagal menyimpan gambar"})
+	}
+
+	gambarURL := fmt.Sprintf("http://localhost:8080/uploads/%s", filename)
+
 	produk := models.Produk{
-		NamaProduk:    input.NamaProduk,
-		Slug:          fmt.Sprintf("%s-%d", strings.ToLower(strings.ReplaceAll(input.NamaProduk, " ", "-")), time.Now().Unix()),
-		HargaReseller: input.HargaReseller,
-		HargaKonsumen: input.HargaKonsumen,
-		Stok:          input.Stok,
-		Deskripsi:     input.Deskripsi,
+		NamaProduk:    namaProduk,
+		Slug:          strings.ToLower(strings.ReplaceAll(namaProduk, " ", "-")),
+		HargaReseller: hargaReseller,
+		HargaKonsumen: hargaKonsumen,
+		Stok:          stok,
+		Deskripsi:     deskripsi,
 		TokoID:        toko.ID,
-		CategoryID:    input.CategoryID,
-		Gambar:        input.Gambar,
+		CategoryID:    uint(categoryID),
+		Gambar:        gambarURL,
 	}
 
 	if err := config.DB.Create(&produk).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{
-			"status":  false,
-			"message": "Gagal menambahkan produk: " + err.Error(),
-		})
+		return c.Status(500).JSON(fiber.Map{"status": false, "message": "Gagal menambahkan produk", "error": err.Error()})
 	}
 
 	utils.CreateLogProduk(produk)
-	config.DB.Preload("Toko").Preload("Category").First(&produk, produk.ID)
 
-	return c.JSON(fiber.Map{
-		"status":  true,
-		"message": "Produk berhasil ditambahkan",
-		"data":    produk,
-	})
+	return c.JSON(fiber.Map{"status": true, "message": "Produk berhasil ditambahkan", "data": produk})
 }
 
-// PUT /produk/:id
-func UpdateProduk(c *fiber.Ctx) error {
+// PUT /product/:id
+func UpdateProduct(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
 	id := c.Params("id")
 
@@ -148,27 +148,27 @@ func UpdateProduk(c *fiber.Ctx) error {
 	}
 
 	if produk.TokoID != toko.ID {
-		return c.Status(403).JSON(fiber.Map{"status": false, "message": "Tidak punya akses mengubah produk ini"})
+		return c.Status(403).JSON(fiber.Map{"status": false, "message": "Tidak punya akses"})
 	}
 
-	var input struct {
-		NamaProduk    string  `json:"nama_produk"`
-		HargaReseller float64 `json:"harga_reseller"`
-		HargaKonsumen float64 `json:"harga_konsumen"`
-		Stok          int     `json:"stok"`
-		Deskripsi     string  `json:"deskripsi"`
+	namaProduk := c.FormValue("nama_produk")
+	hargaReseller, _ := strconv.ParseFloat(c.FormValue("harga_reseller"), 64)
+	hargaKonsumen, _ := strconv.ParseFloat(c.FormValue("harga_konsumen"), 64)
+	stok, _ := strconv.Atoi(c.FormValue("stok"))
+	deskripsi := c.FormValue("deskripsi")
+
+	if file, err := c.FormFile("photo"); err == nil {
+		filename := fmt.Sprintf("%d-%s", time.Now().Unix(), file.Filename)
+		savePath := fmt.Sprintf("./uploads/%s", filename)
+		c.SaveFile(file, savePath)
+		produk.Gambar = fmt.Sprintf("http://localhost:8080/uploads/%s", filename)
 	}
 
-	if err := c.BodyParser(&input); err != nil {
-		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Input tidak valid"})
-	}
-
-	produk.NamaProduk = input.NamaProduk
-	produk.Slug = strings.ToLower(strings.ReplaceAll(input.NamaProduk, " ", "-")) // 🔄 Update slug agar ikut berubah
-	produk.HargaReseller = input.HargaReseller
-	produk.HargaKonsumen = input.HargaKonsumen
-	produk.Stok = input.Stok
-	produk.Deskripsi = input.Deskripsi
+	produk.NamaProduk = namaProduk
+	produk.HargaReseller = hargaReseller
+	produk.HargaKonsumen = hargaKonsumen
+	produk.Stok = stok
+	produk.Deskripsi = deskripsi
 
 	config.DB.Save(&produk)
 	utils.CreateLogProduk(produk)
@@ -176,84 +176,17 @@ func UpdateProduk(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": true, "message": "Produk berhasil diperbarui", "data": produk})
 }
 
-// DELETE /produk/:id
-func DeleteProduk(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uint)
+// DELETE /product/:id
+func DeleteProduct(c *fiber.Ctx) error {
 	id := c.Params("id")
 
-	// Ambil toko milik user
-	var toko models.Toko
-	if err := config.DB.Where("user_id = ?", userID).First(&toko).Error; err != nil {
-		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Toko tidak ditemukan"})
-	}
-
-	// Cek apakah produk ada dulu
 	var produk models.Produk
 	if err := config.DB.First(&produk, id).Error; err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"status":  false,
-			"message": "Produk tidak ditemukan",
-		})
+		return c.Status(404).JSON(fiber.Map{"status": false, "message": "Produk tidak ditemukan"})
 	}
 
-	if produk.TokoID != toko.ID {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"status":  false,
-			"message": "Tidak punya akses untuk menghapus produk ini",
-		})
-	}
+	config.DB.Unscoped().Where("produk_id = ?", id).Delete(&models.LogProduk{})
+	config.DB.Unscoped().Delete(&produk)
 
-	// Hapus log_produks yang berelasi
-	if err := config.DB.Unscoped().Where("produk_id = ?", id).Delete(&models.LogProduk{}).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"status":  false,
-			"message": "Gagal menghapus log produk terkait",
-			"error":   err.Error(),
-		})
-	}
-
-	// Hapus produk (hard delete)
-	if err := config.DB.Unscoped().Delete(&models.Produk{}, id).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"status":  false,
-			"message": "Gagal menghapus produk",
-			"error":   err.Error(),
-		})
-	}
-
-	return c.JSON(fiber.Map{
-		"status":  true,
-		"message": "Produk dan log terkait berhasil dihapus permanen",
-	})
-}
-
-// POST /upload
-func UploadGambarProduk(c *fiber.Ctx) error {
-	file, err := c.FormFile("file")
-	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"status": false, "message": "File tidak ditemukan"})
-	}
-
-	// Validasi ekstensi file
-	if !strings.HasSuffix(strings.ToLower(file.Filename), ".jpg") &&
-		!strings.HasSuffix(strings.ToLower(file.Filename), ".jpeg") &&
-		!strings.HasSuffix(strings.ToLower(file.Filename), ".png") {
-		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Format file tidak didukung (hanya JPG/PNG)"})
-	}
-
-	filename := fmt.Sprintf("%d-%s", time.Now().Unix(), file.Filename)
-	savePath := fmt.Sprintf("./uploads/%s", filename)
-
-	if err := c.SaveFile(file, savePath); err != nil {
-		return c.Status(500).JSON(fiber.Map{"status": false, "message": "Gagal menyimpan file"})
-	}
-
-	fileURL := fmt.Sprintf("http://localhost:8080/uploads/%s", filename)
-	return c.JSON(fiber.Map{
-		"status":  true,
-		"message": "Upload berhasil",
-		"data": fiber.Map{
-			"file_url": fileURL,
-		},
-	})
+	return c.JSON(fiber.Map{"status": true, "message": "Produk berhasil dihapus"})
 }
