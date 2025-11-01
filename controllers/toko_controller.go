@@ -29,14 +29,19 @@ func GetAllToko(c *fiber.Ctx) error {
 	offset := (page - 1) * limit
 
 	var toko []models.Toko
-	query := config.DB.Model(&models.Toko{}).Preload("User")
+	query := config.DB.Preload("User")
 
 	if nama != "" {
 		query = query.Where("LOWER(nama_toko) LIKE ?", "%"+strings.ToLower(nama)+"%")
 	}
 
 	var total int64
-	query.Count(&total)
+	config.DB.Model(&models.Toko{}).Count(&total) 
+
+	if len(toko) == 0 && nama != "" {
+    // jika pencarian tidak menemukan hasil, tampilkan semua toko
+    config.DB.Preload("User").Offset(offset).Limit(limit).Find(&toko)
+	}
 
 	if err := query.Offset(offset).Limit(limit).Find(&toko).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{
@@ -102,7 +107,8 @@ func UpdateToko(c *fiber.Ctx) error {
 	id := c.Params("id_toko")
 
 	var toko models.Toko
-	if err := config.DB.First(&toko, id).Error; err != nil {
+	result := config.DB.First(&toko, id)
+	if result.Error != nil {
 		return c.Status(404).JSON(fiber.Map{
 			"status":  false,
 			"message": "Toko tidak ditemukan",

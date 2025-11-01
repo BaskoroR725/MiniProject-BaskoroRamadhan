@@ -8,10 +8,10 @@ import (
 )
 
 func SetupTokoRoutes(app *fiber.App) {
-	app.Get("/toko", controllers.GetAllToko)
-	app.Get("/toko/:id_toko", controllers.GetTokoByID)
-
 	toko := app.Group("/toko", middleware.JWTProtected)
-	toko.Get("/my", controllers.GetMyToko)
-	toko.Put("/:id_toko", controllers.UpdateToko)
+
+	toko.Get("/", controllers.GetAllToko)           
+	toko.Get("/my", controllers.GetMyToko)          
+	toko.Get("/:id_toko", controllers.GetTokoByID)  
+	toko.Put("/:id_toko", controllers.UpdateToko)   
 }

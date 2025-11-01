@@ -8,7 +8,7 @@ import (
 )
 
 func SetupAlamatRoutes(router fiber.Router) {
-	alamat := router.Group("/alamat", middleware.JWTProtected)
+	alamat := router.Group("/user/alamat", middleware.JWTProtected)
 
 	alamat.Get("/", controllers.GetAllAlamat)    
 	alamat.Get("/:id", controllers.GetAlamatByID)  
