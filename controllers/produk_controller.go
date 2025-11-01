@@ -178,22 +178,53 @@ func UpdateProduk(c *fiber.Ctx) error {
 
 // DELETE /produk/:id
 func DeleteProduk(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uint)
 	id := c.Params("id")
 
+	// Ambil toko milik user
+	var toko models.Toko
+	if err := config.DB.Where("user_id = ?", userID).First(&toko).Error; err != nil {
+		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Toko tidak ditemukan"})
+	}
+
+	// Cek apakah produk ada dulu
 	var produk models.Produk
 	if err := config.DB.First(&produk, id).Error; err != nil {
-		return c.Status(404).JSON(fiber.Map{"status": false, "message": "Produk tidak ditemukan"})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"status":  false,
+			"message": "Produk tidak ditemukan",
+		})
 	}
 
+	if produk.TokoID != toko.ID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"status":  false,
+			"message": "Tidak punya akses untuk menghapus produk ini",
+		})
+	}
+
+	// Hapus log_produks yang berelasi
 	if err := config.DB.Unscoped().Where("produk_id = ?", id).Delete(&models.LogProduk{}).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"status": false, "message": "Gagal menghapus log produk terkait", "error": err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"status":  false,
+			"message": "Gagal menghapus log produk terkait",
+			"error":   err.Error(),
+		})
 	}
 
+	// Hapus produk (hard delete)
 	if err := config.DB.Unscoped().Delete(&models.Produk{}, id).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"status": false, "message": "Gagal menghapus produk", "error": err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"status":  false,
+			"message": "Gagal menghapus produk",
+			"error":   err.Error(),
+		})
 	}
 
-	return c.JSON(fiber.Map{"status": true, "message": "Produk dan log terkait berhasil dihapus permanen"})
+	return c.JSON(fiber.Map{
+		"status":  true,
+		"message": "Produk dan log terkait berhasil dihapus permanen",
+	})
 }
 
 // POST /upload

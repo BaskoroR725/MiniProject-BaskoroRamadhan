@@ -3,62 +3,84 @@ package controllers
 import (
 	"evermos-mini/config"
 	"evermos-mini/models"
+	"evermos-mini/utils"
 	"github.com/gofiber/fiber/v2"
 )
 
-// GET semua alamat user
+// GET /alamat
 func GetAllAlamat(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
 
 	var alamat []models.Alamat
-	if err := config.DB.Where("user_id = ?", userID).Find(&alamat).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"status":  false,
-			"message": "Gagal mengambil alamat",
-		})
-	}
+	config.DB.Where("user_id = ?", userID).Find(&alamat)
 
 	return c.JSON(fiber.Map{"status": true, "data": alamat})
 }
 
-// GET alamat by ID
+// GET /alamat/:id
 func GetAlamatByID(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
 	id := c.Params("id")
 
 	var alamat models.Alamat
 	if err := config.DB.First(&alamat, id).Error; err != nil {
-		return c.Status(404).JSON(fiber.Map{"status": false, "message": "Alamat tidak ditemukan"})
+		return c.Status(404).JSON(fiber.Map{
+			"status":  false,
+			"message": "Alamat tidak ditemukan",
+		})
 	}
 
+	// pastikan alamat milik user sendiri
 	if alamat.UserID != userID {
-		return c.Status(403).JSON(fiber.Map{"status": false, "message": "Tidak punya akses ke alamat ini"})
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"status":  false,
+			"message": "Tidak punya akses ke alamat ini",
+		})
 	}
 
-	return c.JSON(fiber.Map{"status": true, "data": alamat})
+	return c.JSON(fiber.Map{
+		"status": true,
+		"data":   alamat,
+	})
 }
 
-// POST tambah alamat baru
+// POST /alamat
 func CreateAlamat(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
 
-	var input models.Alamat
+	var input struct {
+		JudulAlamat   string `json:"judul_alamat"`
+		NamaPenerima  string `json:"nama_penerima"`
+		NoTelp        string `json:"no_telp"`
+		Provinsi      string `json:"provinsi"`
+		Kota          string `json:"kota"`
+		Kecamatan     string `json:"kecamatan"`
+		Kelurahan     string `json:"kelurahan"`
+		DetailAlamat  string `json:"detail_alamat"`
+	}
+
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Input tidak valid"})
 	}
 
-	input.UserID = userID
-
-	if err := config.DB.Create(&input).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"status": false, "message": "Gagal menambah alamat"})
+	alamat := models.Alamat{
+		JudulAlamat:  input.JudulAlamat,
+		NamaPenerima: input.NamaPenerima,
+		NoTelp:       input.NoTelp,
+		Provinsi:     input.Provinsi,
+		Kota:         input.Kota,
+		Kecamatan:    input.Kecamatan,
+		Kelurahan:    input.Kelurahan,
+		DetailAlamat: input.DetailAlamat,
+		UserID:       userID,
 	}
 
-	return c.JSON(fiber.Map{"status": true, "message": "Alamat berhasil ditambahkan", "data": input})
+	config.DB.Create(&alamat)
+	return c.JSON(fiber.Map{"status": true, "message": "Alamat berhasil ditambahkan", "data": alamat})
 }
 
-// PUT update alamat
+// PUT /alamat/:id
 func UpdateAlamat(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uint)
 	id := c.Params("id")
 
 	var alamat models.Alamat
@@ -66,22 +88,39 @@ func UpdateAlamat(c *fiber.Ctx) error {
 		return c.Status(404).JSON(fiber.Map{"status": false, "message": "Alamat tidak ditemukan"})
 	}
 
-	if alamat.UserID != userID {
-		return c.Status(403).JSON(fiber.Map{"status": false, "message": "Tidak punya akses ke alamat ini"})
+	if !utils.AuthorizeOwner(c, alamat.UserID) {
+		return c.Status(403).JSON(fiber.Map{"status": false, "message": "Tidak punya akses untuk mengubah alamat ini"})
 	}
 
-	var input models.Alamat
+	var input struct {
+		JudulAlamat   string `json:"judul_alamat"`
+		NamaPenerima  string `json:"nama_penerima"`
+		NoTelp        string `json:"no_telp"`
+		Provinsi      string `json:"provinsi"`
+		Kota          string `json:"kota"`
+		Kecamatan     string `json:"kecamatan"`
+		Kelurahan     string `json:"kelurahan"`
+		DetailAlamat  string `json:"detail_alamat"`
+	}
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Input tidak valid"})
 	}
 
-	config.DB.Model(&alamat).Updates(input)
+	alamat.JudulAlamat = input.JudulAlamat
+	alamat.NamaPenerima = input.NamaPenerima
+	alamat.NoTelp = input.NoTelp
+	alamat.Provinsi = input.Provinsi
+	alamat.Kota = input.Kota
+	alamat.Kecamatan = input.Kecamatan
+	alamat.Kelurahan = input.Kelurahan
+	alamat.DetailAlamat = input.DetailAlamat
+
+	config.DB.Save(&alamat)
 	return c.JSON(fiber.Map{"status": true, "message": "Alamat berhasil diperbarui", "data": alamat})
 }
 
-// DELETE hapus alamat
+// DELETE /alamat/:id
 func DeleteAlamat(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uint)
 	id := c.Params("id")
 
 	var alamat models.Alamat
@@ -89,8 +128,8 @@ func DeleteAlamat(c *fiber.Ctx) error {
 		return c.Status(404).JSON(fiber.Map{"status": false, "message": "Alamat tidak ditemukan"})
 	}
 
-	if alamat.UserID != userID {
-		return c.Status(403).JSON(fiber.Map{"status": false, "message": "Tidak punya akses ke alamat ini"})
+	if !utils.AuthorizeOwner(c, alamat.UserID) {
+		return c.Status(403).JSON(fiber.Map{"status": false, "message": "Tidak punya akses untuk menghapus alamat ini"})
 	}
 
 	config.DB.Delete(&alamat)

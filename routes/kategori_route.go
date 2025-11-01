@@ -8,9 +8,9 @@ import (
 )
 
 func SetupKategoriRoutes(app *fiber.App) {
-	app.Get("/kategori", controllers.GetAllKategori)
+	app.Get("/category", controllers.GetAllKategori)
 
-	kategori := app.Group("/kategori", middleware.JWTProtected, middleware.AdminOnly)
+	kategori := app.Group("/category", middleware.JWTProtected, middleware.AdminOnly)
 	kategori.Post("/", controllers.CreateKategori)
 	kategori.Put("/:id", controllers.UpdateKategori)
 	kategori.Delete("/:id", controllers.DeleteKategori)

@@ -10,14 +10,23 @@ import (
 // JWTProtected memverifikasi token JWT sebelum lanjut ke handler
 func JWTProtected(c *fiber.Ctx) error {
 	authHeader := c.Get("Authorization")
+    
+	if authHeader == "" {
+			authHeader = c.Get("token")
+	}
+
 	if authHeader == "" {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"status":  false,
 			"message": "Token tidak ditemukan",
 		})
 	}
-
-	tokenString := strings.Replace(authHeader, "Bearer ", "", 1)
+	
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+	if tokenString == "" {
+		tokenString = authHeader
+	}
+	
 	userID, role, err := utils.ValidateToken(tokenString)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{

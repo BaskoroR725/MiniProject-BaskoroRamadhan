@@ -3,7 +3,7 @@ package controllers
 import (
 	"evermos-mini/config"
 	"evermos-mini/models"
-
+	"evermos-mini/utils"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -13,58 +13,34 @@ func GetTokoByUser(c *fiber.Ctx) error {
 
 	var toko models.Toko
 	if err := config.DB.Where("user_id = ?", userID).First(&toko).Error; err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"status":  false,
-			"message": "Toko tidak ditemukan",
-		})
+		return c.Status(404).JSON(fiber.Map{"status": false, "message": "Toko tidak ditemukan"})
 	}
 
-	return c.JSON(fiber.Map{
-		"status": true,
-		"data":   toko,
-	})
+	return c.JSON(fiber.Map{"status": true, "data": toko})
 }
 
-// PUT /toko
+// PUT /toko/:id
 func UpdateToko(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uint)
+	id := c.Params("id")
 
 	var toko models.Toko
-	if err := config.DB.Where("user_id = ?", userID).First(&toko).Error; err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"status":  false,
-			"message": "Toko tidak ditemukan",
-		})
+	if err := config.DB.First(&toko, id).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"status": false, "message": "Toko tidak ditemukan"})
+	}
+
+	if !utils.AuthorizeOwner(c, toko.UserID) {
+		return c.Status(403).JSON(fiber.Map{"status": false, "message": "Tidak punya akses untuk mengubah toko ini"})
 	}
 
 	var input struct {
 		NamaToko string `json:"nama_toko"`
 	}
 	if err := c.BodyParser(&input); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status":  false,
-			"message": "Input tidak valid",
-		})
-	}
-
-	if input.NamaToko == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status":  false,
-			"message": "Nama toko wajib diisi",
-		})
+		return c.Status(400).JSON(fiber.Map{"status": false, "message": "Input tidak valid"})
 	}
 
 	toko.NamaToko = input.NamaToko
-	if err := config.DB.Save(&toko).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"status":  false,
-			"message": "Gagal memperbarui toko",
-		})
-	}
+	config.DB.Save(&toko)
 
-	return c.JSON(fiber.Map{
-		"status":  true,
-		"message": "Toko berhasil diperbarui",
-		"data":    toko,
-	})
+	return c.JSON(fiber.Map{"status": true, "message": "Toko berhasil diperbarui", "data": toko})
 }
